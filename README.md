@@ -212,7 +212,7 @@ If the `.git` directory is not located in the working tree root the following st
 
 The diff popup appears by hovering the mouse over the gutter changes on Sublime Text 3 or can be called from command palette by `GitGutter: Show Diff Popup` or via a key binding.
 
-ⓘ requires Sublime Text 3 Build 3119+ and mdpopups 1.9.0+
+ⓘ requires Sublime Text 3 Build 3124+ and mdpopups 2.0.0+
 
 ![diff_popup_screenshot](https://user-images.githubusercontent.com/16542113/28744598-804b73fe-7464-11e7-91c6-215a06644181.gif)
 
@@ -235,6 +235,22 @@ The commands are used to quickly navigate between modifications. The default key
 -------------------------------|-----------------------------|-------------
  <kbd>Cmd+Shift+Option+k</kbd> | <kbd>Ctrl+Shift+Alt+k</kbd> | Goto Previous Change
  <kbd>Cmd+Shift+Option+j</kbd> | <kbd>Ctrl+Shift+Alt+j</kbd> | Goto Next Change
+
+The commands use `"next_prev_change_wrap"` setting by default to decide whether to continue at document boundaries. This behavior and the step size can be customized by command arguments with values other then `None`.
+
+#### Example
+
+```JavaScript
+{ "command": "git_gutter_prev_change", "args": {"count": 2, "wrap": False} },
+{ "command": "git_gutter_next_change", "args": {"count": 2, "wrap": False} }
+```
+
+#### Arguments
+
+arg     | valid range       | description
+:------:|:-----------------:|-----------------------------------------------
+count   | None, >=1         | number of iterations to find destination hunk
+wrap    | None, False, True | enable/disable wrapping at document boundaries
 
 
 ### Copy Content from Commit
@@ -325,7 +341,7 @@ GitGutter evaluates changes every time the file is modified by default. Set `fal
 
 `"enable_hover_diff_popup": true`
 
-ⓘ requires Sublime Text 3 Build 3119+ and mdpopups 1.9.0+
+ⓘ requires Sublime Text 3 Build 3124+ and mdpopups 2.0.0+
 
 GitGutter shows a diff popup, when hovering over changes in the gutter. Set `false` to disable this popup. You can still open it with a key binding and from the command palette.
 
@@ -334,14 +350,14 @@ GitGutter shows a diff popup, when hovering over changes in the gutter. Set `fal
 
 `"diff_popup_default_mode": "default"`
 
-ⓘ requires Sublime Text 3 Build 3119+ and mdpopups 1.9.0+
+ⓘ requires Sublime Text 3 Build 3124+ and mdpopups 2.0.0+
 
 The popup displays the previous state of the content under the cursor by `"default"` but can be set to `"diff"` to highlight the differences between the git state and the editor state.
 
 
 #### Diff Popup Appearance
 
-ⓘ requires Sublime Text 3 Build 3119+ and mdpopups 1.9.0+
+ⓘ requires Sublime Text 3 Build 3124+ and mdpopups 2.0.0+
 
 The popup uses the [mdpopups](https://github.com/facelessuser/sublime-markdown-popups) library and the corresponding settings are global and not only for GitGutter. Syntax highlighting can be set to match the active color scheme by adding `"mdpopups.use_sublime_highlighter": true` to the User settings.
 
@@ -470,15 +486,22 @@ The _Status Bar Text_ is rendered using a fully customizable template from `stat
 
 GitGutter provides the following variables to be used in the template.
 
- Variable     | Description
-:------------:|-------------------------------------------------------------
- {{repo}}     | repository name / folder name containing the .git directory
- {{branch}}   | checked out branch you are working on
- {{compare}}  | commit/branch/HEAD the file is compared to
- {{state}}    | One of committed/modified/ignored/untracked
- {{deleted}}  | number of deleted regions
- {{inserted}} | number of inserted lines
- {{modified}} | number of modified lines
+ Variable           | Description
+:------------------:|-------------------------------------------------------------
+ {{repo}}           | repository name / folder name containing the .git directory
+ {{branch}}         | checked out branch you are working on
+ {{remote}}         | tracked remote of current branch you are working on or `None`
+ {{ahead}}          | number of commits the local branch is ahead of remote
+ {{behind}}         | number of commits the local branch is behind remote
+ {{added_files}}    | number of untracked files added to working tree
+ {{deleted_files}}  | number of files deleted from working tree
+ {{modified_files}} | number of modified files in the working tree
+ {{staged_files}}   | number of files in the staging area
+ {{compare}}        | commit/branch/HEAD the file is compared to
+ {{state}}          | One of committed/modified/ignored/untracked
+ {{deleted}}        | number of deleted regions
+ {{inserted}}       | number of inserted lines
+ {{modified}}       | number of modified lines
 
 
 #### Themes

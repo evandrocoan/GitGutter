@@ -93,11 +93,9 @@ def set_against_branch(git_gutter, **kwargs):
 
         def parse_result(result):
             """Create a quick panel item for one line of git's output."""
-            pieces = result.split('\a')
-            message = pieces[0]
-            branch = pieces[1][11:]   # skip 'refs/heads/'
-            commit = pieces[2][0:7]   # 7-digit commit hash
-            return [branch, '%s %s' % (commit, message)]
+            branch, commit, name, date = result.split('\a')
+            branch = branch[11:]   # skip 'refs/heads/'
+            return [branch, commit, name, date]
 
         # Create the list of branches to show in the quick panel
         items = [parse_result(r) for r in output.split('\n')]
@@ -134,10 +132,9 @@ def set_against_tag(git_gutter, **kwargs):
 
         def parse_result(result):
             """Create a quick panel item for one line of git's output."""
-            pieces = result.split(' ')
-            commit = pieces[0]     # 7-digit commit hash
-            tag = pieces[1][10:]   # skip 'refs/tags/'
-            return [tag, commit]
+            tag, commit, tname, tdate, cname, cdate = result.split('\a')
+            tag = tag[10:]         # skip 'refs/heads/'
+            return [tag, commit, tname.strip() or cname, tdate.strip() or cdate]
 
         # Create the list of tags to show in the quick panel
         items = [parse_result(r) for r in output.split('\n')]
@@ -176,12 +173,12 @@ def set_against_origin(git_gutter, **kwargs):
             This argument is declared to create a common interface being used
             by the GitGutterCommand object.
     """
-    def on_branch_name(branch_name):
-        if branch_name:
-            git_gutter.git_handler.set_compare_against(
-                '%s@{upstream}' % branch_name, True)
+    def on_branch_name(status):
+        if not status or not status.get('remote'):
+            sublime.message_dialog('Current branch has not tracking remote!')
+        git_gutter.git_handler.set_compare_against(status.get('remote'), True)
 
-    git_gutter.git_handler.git_current_branch().then(on_branch_name)
+    git_gutter.git_handler.git_branch_status().then(on_branch_name)
 
 
 def show_compare(git_gutter, **kwargs):
