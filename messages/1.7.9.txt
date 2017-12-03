@@ -1,0 +1,9 @@
+1.7.9:
+------
+
+  Internal:
+   - Update json_test
+   - Ignore .ropeproject folder
+
+  Fix:
+   - Branch name with dot is truncated on status bar (Issue #468)

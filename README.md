@@ -152,11 +152,11 @@ All modules of GitGutter were moved to `modules` sub directory to present them t
 GitGutter handles Package Control's `post_upgrade` event to reload all its submodules once after upgrading. In rare cases some modules might not be recovered properly and thus require a restart of ST to make GitGutter work again.
 
 
-#### GitGutter keeps completely quite
+#### GitGutter keeps completely quiet
 
 GitGutter is installed and loads properly without any error messages printed to Sublime Text's console, but keeps completely disabled in some or all repositories. Neither gutter icons nor messages are displayed in the status bar.
 
-GitGutter is designed to keep quite in the following situations when evaluation is expected useless:
+GitGutter is designed to keep quiet in the following situations when evaluation is expected useless:
 
 - disabled in _Preferences.sublime-settings_, project settings or view settings (`"git_gutter_enabled": false`)
 - disabled in _GitGutter.sublime-settings_ (`"enabled": false`)
@@ -367,6 +367,20 @@ The popup uses the [mdpopups](https://github.com/facelessuser/sublime-markdown-p
 
 👉 User style settings are accessible via the settings menu.
 
+#### Diff Popup Protected Regions
+
+```
+"diff_popup_protected_regions": [
+  "sublime_linter.protected_regions"
+],
+```
+
+To avoid GitGutter's diff popup from figting with other popups while hovering the gutter a list of protected regions can be created. If the line under the mouse cursor is occupied by one of these regions, no diff popup is displayed.
+
+👉 You will need to figure out the names of the regions to protect.
+
+👉 You can still open the diff popup via key binding or command pallet.
+
 
 #### Untracked Files
 
@@ -415,11 +429,28 @@ It is valid to use environment variables in the setting value, and they will be 
 In a POSIX environment you can run `which git` to find the path to git if it is in your path.  On Windows, you can use `where git` to do the equivalent.
 
 
+#### Git Environment Variables
+
+```
+"env": {
+  "GIT_OPTIONAL_LOCKS": 0
+}
+```
+
+With the `"env"` dictionary custom environment variables can be passed to git. The values overwrite the global environment variables Sublime Text is running with.
+
+👉 Keys with value `None` are removed from the local environment.
+
+👉 The `"git_gutter_env"` defined per view or project hides the global `"env"` dictionary.
+
+👉 Make sure to use the correct separator characters of your OS, if you manipulate the `$PATH`.
+
+
 #### Diff Algorithm
 
 `"diff_algorithm": "patience"`
 
-GitGutter uses the "patience" diff algorithm by default. Set`diff_algorithm` to one of the follwoing values to change this behavior.
+GitGutter uses the "patience" diff algorithm by default. Set `diff_algorithm` to one of the follwoing values to change this behavior.
 
 value       | description
 :----------:|-----------------------------------------------
