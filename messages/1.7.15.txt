@@ -1,0 +1,9 @@
+1.7.15:
+-------
+
+  Fix:
+   - Compatibility issue of GitGutter with Snap on Ubuntu (#495)
+   - Write access regression when creating temp dir (#498)
+
+  Enhancement:
+   - Reduce number of git --version calls (#493)

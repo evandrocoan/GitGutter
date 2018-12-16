@@ -1,0 +1,5 @@
+1.9.2:
+
+  Fix:
+   - ST2 compatibility issue (#515)
+   - Disable line annotations in distraction free mode (#514)

@@ -1,0 +1,7 @@
+1.7.14:
+-------
+
+  Fix:
+   - Diff Popup's content looks ugly due to Courier font
+   - Use Segoe UI Symbol for popup toolbars
+   - ST2 compatibility issue in TempFile class

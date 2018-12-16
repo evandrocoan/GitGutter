@@ -1,0 +1,4 @@
+1.9.4:
+
+  Fix:
+   - avoid line height shifting by displaying annotations (#518)

@@ -1,0 +1,7 @@
+1.9.3:
+
+  Enhancement:
+   - Disable line annotation for uncommitted content (#517)
+
+  Fix:
+   - Disable line annotations if content is centered (#514)

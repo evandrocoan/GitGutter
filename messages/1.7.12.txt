@@ -1,0 +1,11 @@
+1.7.12:
+-------
+
+  README:
+   - Add a reason for GitGutter to keep quiet
+   - Fix documentation for `diff_algorithm`
+
+  Enhancement:
+   - Place all temporary files into a dedicated sub directory
+   - Use XDG_RUNTIME_DIR for temporary files if available
+   - Delete old temporary files upon startup

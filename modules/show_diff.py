@@ -1,23 +1,19 @@
 # -*- coding: utf-8 -*-
-try:
-    # avoid exceptions if dependency is not yet satisfied
-    import jinja2.environment
-    _HAVE_JINJA2 = True
-except ImportError:
-    _HAVE_JINJA2 = False
-
 import sublime
 
-_ICON_EXT = '.png' if int(sublime.version()) >= 3000 else ''
+from .utils import ST3
+
+_ICON_EXT = '.png' if ST3 else ''
 
 
 class GitGutterShowDiff(object):
     region_names = ('deleted_top', 'deleted_bottom', 'deleted_dual',
                     'inserted', 'changed', 'untracked', 'ignored')
 
-    def __init__(self, git_handler):
+    def __init__(self, git_handler, status_bar):
         """Initialize GitGutterShowDiff object."""
         self.git_handler = git_handler
+        self.status_bar = status_bar
         self._line_height = 0
         self._minimap_size = 1
         # True if diff is running
@@ -88,7 +84,7 @@ class GitGutterShowDiff(object):
             self._line_height = view.line_height()
             self._minimap_size = self.git_handler.settings.show_in_minimap
             regions = self._contents_to_regions(contents)
-            if not self.git_handler.view_file_changed():
+            if not self.git_handler.view_cache.is_changed():
                 for name, region in zip(self.region_names, regions):
                     self._bind_regions(name, region)
             self._update_status(
@@ -103,60 +99,20 @@ class GitGutterShowDiff(object):
     def _update_status(self, file_state, contents):
         """Update status message.
 
-        The method joins and renders the lines read from 'status_bar_text'
-        setting to the status bar using the jinja2 library to fill in all
-        the state information of the open file.
-
         Arguments:
             file_state (string): The git status of the open file.
             contents (tuble): The result of git_handler.diff(), with the
                 information about the modifications of the file.
                 Scheme: (first, last, [inserted], [modified], [deleted])
         """
-        if not self.git_handler.settings.get('show_status_bar_text', False):
-            self.git_handler.view.erase_status('00_git_gutter')
-            return
-
-        # Update status bar only for active view
-        window = self.git_handler.view.window()
-        if window and window.active_view().id() != self.git_handler.view.id():
-            return
-
-        def set_status(branch_status):
+        if self.status_bar.is_enabled():
             _, _, inserted, modified, deleted = contents
-            template = (
-                self.git_handler.settings.get('status_bar_text')
-                if _HAVE_JINJA2 else None
+            self.status_bar.update(
+                state=file_state,
+                deleted=len(deleted),
+                inserted=len(inserted),
+                modified=len(modified),
             )
-            if template:
-                # render the template using jinja2 library
-                text = jinja2.environment.Template(''.join(template)).render(
-                    repo=self.git_handler.repository_name,
-                    compare=self.git_handler.format_compare_against(),
-                    state=file_state, deleted=len(deleted),
-                    inserted=len(inserted), modified=len(modified),
-                    **branch_status)
-            else:
-                # Render hardcoded text if jinja is not available.
-                parts = []
-                parts.append('On %s' % branch_status['branch'])
-                compare = self.git_handler.format_compare_against()
-                if compare not in ('HEAD', branch_status['branch']):
-                    parts.append('Comparing against %s' % compare)
-                count = len(inserted)
-                if count:
-                    parts.append('%d+' % count)
-                count = len(deleted)
-                if count:
-                    parts.append('%d-' % count)
-                count = len(modified)
-                if count:
-                    parts.append(u'%d≠' % count)
-                text = ', '.join(parts)
-            # add text and try to be the left most one
-            self.git_handler.view.set_status('00_git_gutter', text)
-
-        self.git_handler.git_branch_status().then(set_status)
 
     def _contents_to_regions(self, contents):
         """Convert the diff contents to gutter regions.
@@ -210,12 +166,10 @@ class GitGutterShowDiff(object):
         Returns:
             list: The list of text positions of each line start
         """
-        view = self.git_handler.view
-        start = view.text_point(first_line - 1, 0)
-        end = view.text_point(last_line, 0)
-        region = sublime.Region(start, end)
+        start = self.git_handler.view.text_point(first_line - 1, 0)
+        end = self.git_handler.view.text_point(last_line, 0)
         lines = [start]
-        for line in view.substr(region).splitlines():
+        for line in self.git_handler.view_cache[start:end].splitlines():
             start += len(line) + 1
             lines.append(start)
         # Add one more dummy line to avoid IndexError due to deleted_bottom
@@ -300,9 +254,7 @@ class GitGutterShowDiff(object):
         start = 0
         regions = []
         protected = self._get_protected_regions()
-        chars = view.size()
-        region = sublime.Region(start, chars)
-        for line in view.substr(region).splitlines():
+        for line in self.git_handler.view_cache.text.splitlines():
             end = start + len(line)
             if start not in protected:
                 region = sublime.Region(

@@ -4,6 +4,7 @@ import os
 import sublime
 import sublime_plugin
 
+from . import blame
 from . import compare
 from . import copy
 from . import events
@@ -14,6 +15,9 @@ from . import revert
 from . import settings
 from . import show_diff
 from . import utils
+
+from .annotation import GitGutterLineAnnotation
+from .statusbar import GitGutterStatusBar
 
 # the reason why evaluation is skipped, which is printed to console
 # if debug is set true and evaluation.
@@ -26,7 +30,9 @@ DISABLED_REASON = {
     6: 'view is a REPL',
     7: 'view encoding is Hexadecimal',
     8: 'file not in a working tree',
-    9: 'git is not working'
+    9: 'git is not working',
+    10: 'UNC paths not supported by WSL',
+    11: 'git rebase is active'
 }
 
 
@@ -34,6 +40,7 @@ class GitGutterCommand(sublime_plugin.TextCommand):
 
     # The map of sub commands and their implementation
     commands = {
+        'blame': blame.run_blame,
         'jump_to_next_change': goto.next_change,
         'jump_to_prev_change': goto.prev_change,
         'compare_against_commit': compare.set_against_commit,
@@ -53,7 +60,10 @@ class GitGutterCommand(sublime_plugin.TextCommand):
         sublime_plugin.TextCommand.__init__(self, *args, **kwargs)
         self.settings = settings.ViewSettings(self.view)
         self.git_handler = handler.GitGutterHandler(self.view, self.settings)
-        self.show_diff_handler = show_diff.GitGutterShowDiff(self.git_handler)
+        self.line_annotation = GitGutterLineAnnotation(self.view, self.settings)
+        self.status_bar = GitGutterStatusBar(self.view, self.settings)
+        self.show_diff_handler = show_diff.GitGutterShowDiff(self.git_handler, self.status_bar)
+
         # Last enabled state for change detection
         self._state = -1
 
@@ -63,7 +73,7 @@ class GitGutterCommand(sublime_plugin.TextCommand):
         state = 0
 
         # Keep idle, if disabled by user setting
-        if not self.settings.get('enable', True):
+        if not view.settings().get('git_gutter_enable', True):
             state = 1
         # Don't handle unattached views
         elif not view.window():
@@ -94,6 +104,12 @@ class GitGutterCommand(sublime_plugin.TextCommand):
             # Keep quite if git is not working properly
             elif not self.git_handler.version(validate):
                 state = 9
+            # In WSL mode the repo must be located on a drive like (C:\path)
+            elif not self.git_handler.work_tree_supported():
+                state = 10
+            # Keep quite if a rebase operation is on the fly
+            elif self.git_handler.is_rebase_active():
+                state = 11
 
         # Handle changed state
         valid = state == 0
@@ -101,7 +117,7 @@ class GitGutterCommand(sublime_plugin.TextCommand):
             # File moved out of work-tree or repository gone
             if not valid:
                 self.show_diff_handler.clear()
-                self.git_handler.invalidate_view_file()
+                self.git_handler.view_cache.invalidate()
                 if settings.get('debug'):
                     utils.log_message('disabled for "%s" because %s' % (
                         os.path.basename(self.view.file_name() or 'untitled'),
@@ -120,13 +136,24 @@ class GitGutterCommand(sublime_plugin.TextCommand):
             assert command_func, 'Unhandled sub command "%s"' % action
             return command_func(self, **kwargs)
 
-        queued_events = kwargs.get('events', 0)
-        if not queued_events & (events.LOAD | events.MODIFIED):
-            # On 'load' the git file is not yet valid anyway.
-            # On 'modified' is sent when user is typing.
-            # The git repository will most likely not change then.
+        queued_events = kwargs.get('events', events.ACTIVATED)
+        if queued_events & (events.ACTIVATED | events.LOAD):
+            self.update_git_status()
+        if queued_events & events.ACTIVATED:
             self.git_handler.invalidate_git_file()
+
         self.show_diff_handler.run()
+
+    def update_git_status(self):
+        """Update git repository status."""
+        if self.status_bar.is_enabled():
+            self.git_handler.git_branch_status().then(
+                lambda branch_status: self.status_bar.update(
+                    repo=self.git_handler.repository_name,
+                    compare=self.git_handler.format_compare_against(),
+                    **branch_status
+                )
+            )
 
 
 class GitGutterBaseCommand(sublime_plugin.TextCommand):
@@ -141,6 +168,10 @@ class GitGutterBaseCommand(sublime_plugin.TextCommand):
     def run(self, edit, **kwargs):
         kwargs['action'] = self.ACTION
         self.view.run_command('git_gutter', kwargs)
+
+
+class GitGutterBlameCommand(GitGutterBaseCommand):
+    ACTION = 'blame'
 
 
 class GitGutterShowCompareCommand(GitGutterBaseCommand):

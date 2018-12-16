@@ -5,6 +5,7 @@ import sublime
 import sublime_plugin
 
 from . import settings
+from .annotation import erase_line_annotation
 
 # binary representation of all ST events
 NEW = 1
@@ -50,9 +51,10 @@ class EventListener(sublime_plugin.EventListener):
         Arguments:
             view (View): The view which received the event.
         """
-        key = view.id()
-        if key in self.view_events:
-            del self.view_events[key]
+        try:
+            del self.view_events[view.id()]
+        except KeyError:
+            pass
 
     def on_modified(self, view):
         """Run git_gutter for modified visible view.
@@ -102,15 +104,15 @@ class EventListener(sublime_plugin.EventListener):
         # don't let the popup flicker / fight with other packages
         if view.is_popup_visible():
             return
-        key = view.id()
-        if key not in self.view_events:
+        try:
+            view_settings = self.view_events[view.id()].settings
+        except KeyError:
             return
         # check if hover is enabled
-        settings = self.view_events[key].settings
-        if not settings.get('enable_hover_diff_popup'):
+        if not view_settings.get('enable_hover_diff_popup'):
             return
         # check protected regions
-        keys = tuple(settings.get('diff_popup_protected_regions'))
+        keys = tuple(view_settings.get('diff_popup_protected_regions'))
         points = (view.line(reg).a for key in keys for reg in view.get_regions(key))
         if point in points:
             return
@@ -126,9 +128,17 @@ class EventListener(sublime_plugin.EventListener):
             event_id (int): The event identifier
         """
         key = view.id()
-        if key not in self.view_events:
-            self.view_events[key] = ViewEventListener(view)
-        self.view_events[key].push(event_id)
+        try:
+            self.view_events[key].push(event_id)
+        except KeyError:
+            if view.buffer_id():
+                new_listener = ViewEventListener(view)
+                new_listener.push(event_id)
+                self.view_events[key] = new_listener
+            # do garbage connection
+            for vid in [vid for vid, listener in self.view_events.items()
+                        if listener.view.buffer_id() == 0]:
+                del self.view_events[vid]
 
 
 class ViewEventListener(object):
@@ -229,3 +239,75 @@ class ViewEventListener(object):
                 if active_view and active_view.id() == view_id:
                     return True
         return False
+
+
+class BlameEventListener(sublime_plugin.EventListener):
+    """An EventListener to track caret movement and update blame messages."""
+
+    def __init__(self):
+        """Initialize n BlameEventListener object."""
+        # last blame call
+        self.latest_blame_time = 0.0
+        # a dictionary with active rows of each view
+        self.last_blame_row = {}
+
+    def on_close(self, view):
+        """Clean up the debounce dictionary.
+
+        Arguments:
+            view (View): The view which received the event.
+        """
+        key = view.id()
+        if key in self.last_blame_row:
+            del self.last_blame_row[key]
+
+    def on_activated(self, view):
+        """Run blame if the view is activated."""
+        self._run_blame(view, True)
+
+    def on_deactivated(self, view):
+        """Remove inline blame text if view is deactivated."""
+        erase_line_annotation(view)
+
+    def on_modified(self, view):
+        """Remove inline blame text if user starts typing."""
+        erase_line_annotation(view)
+
+    def on_selection_modified(self, view):
+        """Run blame if the caret moves to another row."""
+        self._run_blame(view, False)
+
+    def _run_blame(self, view, force):
+        """Run blame if the caret moves to another row."""
+
+        # remove existing phantoms
+        erase_line_annotation(view)
+
+        # initiate debounce timer
+        blame_time = time.time()
+        self.latest_blame_time = blame_time
+
+        def on_time():
+            if self.latest_blame_time != blame_time:
+                return
+            try:
+                sel = view.sel()
+                # do nothing if not exactly one cursor is visible
+                if len(sel) != 1:
+                    return
+                sel = sel[0]
+                # do nothing is selection not empty or line is empty
+                if not sel.empty() or not view.line(sel.b):
+                    return
+                row, _ = view.rowcol(sel.b)
+                # do nothing if row didn't change
+                if not force and row == self.last_blame_row.get(view.id(), -1):
+                    return
+                self.last_blame_row[view.id()] = row
+            except (AttributeError, IndexError, TypeError):
+                pass
+            else:
+                view.run_command('git_gutter_blame', {'line': row})
+
+        # don't call blame if selected row changes too quickly
+        sublime.set_timeout(on_time, 400)
